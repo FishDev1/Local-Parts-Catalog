@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Parts Catalog</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #1d2330; --muted: #667085;
+    --border: #d9dde3; --accent: #2563eb; --danger: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14171c; --card: #1e232b; --text: #e6e9ef; --muted: #98a2b3; --border: #343b46; --accent: #60a5fa; --danger: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px 16px 8px; max-width: 1100px; margin: 0 auto; }
+  header h1 { margin: 0; font-size: 1.6rem; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { max-width: 1100px; margin: 0 auto; padding: 8px 16px 40px; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 1.1rem; }
+  form { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+  form .full { grid-column: 1 / -1; }
+  @media (max-width: 640px) { form { grid-template-columns: 1fr; } }
+  label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; }
+  input[type=text], input[type=search], textarea {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  .preview { margin-top: 8px; max-height: 140px; max-width: 100%; border-radius: 6px; display: none; border: 1px solid var(--border); }
+  button { font: inherit; padding: 9px 16px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }
+  .primary { background: var(--accent); color: #fff; }
+  .ghost { background: transparent; border-color: var(--border); color: var(--text); }
+  .danger { background: transparent; color: var(--danger); border-color: var(--danger); padding: 5px 10px; font-size: .85rem; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .toolbar input { flex: 1 1 240px; }
+  .count { color: var(--muted); font-size: .9rem; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .item { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+  .item .img { aspect-ratio: 4/3; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .85rem; cursor: zoom-in; }
+  .item .img img { width: 100%; height: 100%; object-fit: contain; }
+  .item .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .pn { font-weight: 700; font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+  .desc { color: var(--muted); font-size: .92rem; white-space: pre-wrap; word-break: break-word; flex: 1; }
+  .meta { display: flex; justify-content: space-between; align-items: center; font-size: .78rem; color: var(--muted); }
+  .empty { text-align: center; color: var(--muted); padding: 30px 0; }
+  .msg { font-size: .85rem; color: var(--danger); }
+  .badge { font-size: .8rem; font-weight: 600; vertical-align: middle; padding: 3px 8px; border-radius: 999px;
+    background: var(--danger); color: #fff; }
+  .backup { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border); background: var(--card); font-size: .92rem; }
+  .backup.warn { border-color: #d97706; background: rgba(217,119,6,.1); }
+  .backup.ok { border-color: #16a34a; background: rgba(22,163,74,.08); }
+  dialog { border: none; padding: 0; background: transparent; max-width: 95vw; max-height: 95vh; }
+  dialog::backdrop { background: rgba(0,0,0,.75); }
+  dialog img { max-width: 95vw; max-height: 90vh; display: block; border-radius: 8px; }
+  dialog.editor { background: var(--card); color: var(--text); padding: 20px; border-radius: 10px;
+    width: min(560px, calc(100vw - 32px)); }
+  dialog.editor h2 { margin: 0 0 14px; font-size: 1.1rem; }
+  dialog.editor form { grid-template-columns: 1fr; }
+  dialog.editor img { max-height: 160px; max-width: 100%; border: 1px solid var(--border); }
+  .edit { background: transparent; color: var(--accent); border-color: var(--accent); padding: 5px 10px; font-size: .85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Local Parts Catalog <span id="adminBadge" class="badge" hidden>Admin mode</span></h1>
+  <p>Add parts with a number, description and photo.</p>
+</header>
+<main>
+  <div id="backupBar" class="backup">
+    <span id="backupText"></span>
+    <span class="actions">
+      <button class="primary" id="shareOpen" type="button" hidden>Choose shared folder</button>
+      <button class="primary" id="shareReconnect" type="button" hidden>Reconnect</button>
+      <button class="ghost" id="shareRefresh" type="button" hidden>Refresh now</button>
+      <button class="ghost" id="shareStop" type="button" hidden>Disconnect</button>
+      <button class="primary" id="downloadBackup" type="button" hidden>Download backup</button>
+    </span>
+  </div>
+
+  <section class="panel">
+    <h2>Add a part</h2>
+    <form id="addForm">
+      <div>
+        <label for="pn">Part number</label>
+        <input type="text" id="pn" required autocomplete="off">
+      </div>
+      <div>
+        <label for="img">Image</label>
+        <input type="file" id="img" accept="image/*">
+        <img id="preview" class="preview" alt="Preview">
+      </div>
+      <div class="full">
+        <label for="desc">Description</label>
+        <textarea id="desc"></textarea>
+      </div>
+      <div class="full actions">
+        <button type="submit" class="primary">Add part</button>
+        <button type="reset" class="ghost">Clear</button>
+        <span id="formMsg" class="msg"></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search by part number or description">
+      <span class="count" id="count"></span>
+      <button class="ghost" id="xlsxBtn" type="button">Export to Excel</button>
+      <button class="ghost" id="exportBtn" type="button">Export backup</button>
+      <button class="ghost" id="importBtn" type="button">Import backup</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <div id="list" class="grid"></div>
+  </section>
+</main>
+<dialog id="viewer"><img id="viewerImg" alt=""></dialog>
+<dialog id="editor" class="editor">
+  <h2>Edit part</h2>
+  <form id="editForm">
+    <div>
+      <label for="editPn">Part number</label>
+      <input type="text" id="editPn" required autocomplete="off">
+    </div>
+    <div>
+      <label for="editDesc">Description</label>
+      <textarea id="editDesc"></textarea>
+    </div>
+    <div>
+      <label for="editImg">Photo</label>
+      <img id="editPreview" alt="" hidden>
+      <span id="editNoPhoto" class="count">No photo yet.</span>
+      <input type="file" id="editImg" accept="image/*" style="margin-top:8px">
+      <div class="count">Choose a file only to replace the photo.</div>
+    </div>
+    <div class="actions">
+      <button type="submit" class="primary">Save changes</button>
+      <button type="button" class="ghost" id="editCancel">Cancel</button>
+      <span id="editMsg" class="msg"></span>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const OLD_KEY = 'partsCatalog.v1';           // where older versions kept parts
+const META_KEY = 'partsCatalog.backupMeta';
+const CATALOG = 'parts-catalog.json', IMG_DIR = 'images';
+const PAGE = 60;
+let parts = [];
+let pendingImage = null;
+let showCount = PAGE;
+
+const $ = id => document.getElementById(id);
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Deleting is only offered when the page is opened as "Local Parts Catalog.html#admin".
+const isAdmin = () => location.hash.toLowerCase() === '#admin';
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+// ---- Browser storage ----
+// IndexedDB holds this browser's copy of the catalog (and the shared folder's handle).
+// It allows far more than the ~5 MB localStorage limit older versions used.
+function idb(store, mode, fn) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('partsCatalog', 2);
+    req.onupgradeneeded = () => {
+      for (const s of ['handles', 'data']) if (!req.result.objectStoreNames.contains(s)) req.result.createObjectStore(s);
+    };
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const tx = req.result.transaction(store, mode);
+      const r = fn(tx.objectStore(store));
+      tx.oncomplete = () => resolve(r && r.result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    };
+  });
+}
+async function loadLocal() {
+  try {
+    const saved = await idb('data', 'readonly', s => s.get('parts'));
+    if (Array.isArray(saved)) return saved;
+  } catch {}
+  try {
+    const old = JSON.parse(localStorage.getItem(OLD_KEY)) || [];
+    parts = old;
+    if (await saveLocal(false)) localStorage.removeItem(OLD_KEY);
+    return old;
+  } catch { return []; }
+}
+async function saveLocal(warn) {
+  try { await idb('data', 'readwrite', s => s.put(parts, 'parts')); return true; } catch {}
+  try { localStorage.setItem(OLD_KEY, JSON.stringify(parts)); return true; } catch {}
+  if (warn) alert('Could not save: browser storage is full. Try a smaller image, or use a shared catalog folder instead.');
+  return false;
+}
+const storeHandle = h => idb('handles', 'readwrite', s => h ? s.put(h, 'sharedDir') : s.delete('sharedDir'));
+const loadHandle = () => idb('handles', 'readonly', s => s.get('sharedDir'));
+
+function getMeta() { try { return JSON.parse(localStorage.getItem(META_KEY)) || {}; } catch { return {}; } }
+function setMeta(m) { try { localStorage.setItem(META_KEY, JSON.stringify(m)); } catch {} }
+function markChanged() { const m = getMeta(); m.changes = (m.changes || 0) + 1; setMeta(m); updateBar(); }
+function markBackedUp() { const m = getMeta(); m.changes = 0; m.last = new Date().toISOString(); setMeta(m); }
+
+// Every add, delete and import goes through commit(). `change` turns a list of parts into
+// the new list; `verify` checks a list to see that the change is in it.
+async function commit(change, verify) {
+  if (dir && sharedReady) return commitShared(change, verify);
+  const before = parts;
+  parts = change(parts);
+  if (!await saveLocal(true)) { parts = before; return false; }
+  markChanged();
+  render();
+  return true;
+}
+
+// ---- Images ----
+function shrink(src, maxSide, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onerror = reject;
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.src = src;
+  });
+}
+function dataUrlToBlob(url) {
+  const [head, b64] = url.split(',');
+  const bin = atob(b64), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: head.slice(5).split(';')[0] });
+}
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+// ---- Shared catalog folder ----
+// Chrome and Edge can read and write a folder on a network drive (File System Access API).
+// The folder holds parts-catalog.json (text only, so it stays small) and an images folder
+// with one full-size photo and one thumbnail per part. Each save re-reads the catalog,
+// applies only that one change, writes it back and checks it stuck, so people don't
+// overwrite each other's work.
+const canShare = 'showDirectoryPicker' in window && 'indexedDB' in window;
+let dir = null;            // the shared folder
+let sharedReady = false;   // permission granted this session
+let catalogModified = 0;   // lastModified of the catalog version we last read
+let lastSync = null;
+let sharedError = '';
+let queue = Promise.resolve();
+const imageUrls = new Map(); // image file name -> Promise of an object URL
+
+async function readShared() {
+  for (let attempt = 0; ; attempt++) {
+    const f = await (await dir.getFileHandle(CATALOG)).getFile();
+    const text = await f.text();
+    try {
+      const data = text.trim() ? JSON.parse(text) : [];
+      if (!Array.isArray(data)) throw new Error('This file is not a parts catalog.');
+      catalogModified = f.lastModified;
+      return data;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      await sleep(400); // someone may be part-way through saving
+    }
+  }
+}
+async function writeFile(folder, name, content) {
+  const w = await (await folder.getFileHandle(name, { create: true })).createWritable();
+  await w.write(content);
+  await w.close();
+}
+const writeShared = list => writeFile(dir, CATALOG, JSON.stringify(list));
+const imagesDir = create => dir.getDirectoryHandle(IMG_DIR, { create });
+// Image paths are relative to the images folder, e.g. "ABC-123 - Hex bolt.jpg" or "thumbs/ABC-123 - Hex bolt.jpg".
+async function imageEntry(path) {
+  const bits = path.split('/');
+  let folder = await imagesDir(false);
+  for (const d of bits.slice(0, -1)) folder = await folder.getDirectoryHandle(d);
+  return [folder, bits[bits.length - 1]];
+}
+async function readImageFile(path) { const [folder, name] = await imageEntry(path); return (await folder.getFileHandle(name)).getFile(); }
+async function removeImageFile(path) { try { const [folder, name] = await imageEntry(path); await folder.removeEntry(name); } catch {} }
+
+// Photos are named after the part, like "ABC-123 - Hex bolt M8.jpg", with characters
+// Windows doesn't allow in file names replaced by _ and long names shortened.
+function photoBaseName(p) {
+  let n = [p.partNumber, p.description].filter(Boolean).join(' - ')
+    .replace(/\s+/g, ' ').replace(/[\\/:*?"<>|\u0000-\u001F]/g, '_').trim();
+  if (n.length > 80) n = n.slice(0, 80).trim();
+  n = n.replace(/[. ]+$/, '');
+  if (!n || /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(n)) n = 'part ' + n;
+  return n;
+}
+// Adds " (2)", " (3)"… when two parts would get the same file name.
+async function uniqueName(folder, base) {
+  for (let i = 1; ; i++) {
+    const name = i === 1 ? `${base}.jpg` : `${base} (${i}).jpg`;
+    try { await folder.getFileHandle(name); }
+    catch (e) { if (e.name === 'NotFoundError') return name; throw e; }
+  }
+}
+
+// Turns a part with an embedded photo into one whose photo lives in the images folder,
+// with its thumbnail under images/thumbs.
+async function toShared(p) {
+  const { image, ...rest } = p;
+  if (!image || !image.startsWith('data:')) return rest;
+  const folder = await imagesDir(true);
+  const thumbs = await folder.getDirectoryHandle('thumbs', { create: true });
+  const name = await uniqueName(folder, photoBaseName(p));
+  const full = image.startsWith('data:image/jpeg') ? image : await shrink(image, 1000);
+  await writeFile(folder, name, dataUrlToBlob(full));
+  await writeFile(thumbs, name, dataUrlToBlob(await shrink(image, 320, 0.75)));
+  return { ...rest, imageFile: name, thumbFile: 'thumbs/' + name };
+}
+
+// Photos saved by the previous version were named by an internal id. Rename them after the part.
+async function renameOldPhotos(data) {
+  const old = data.filter(p => p.imageFile === `${p.id}.jpg`);
+  if (!old.length) return;
+  const folder = await imagesDir(true);
+  const thumbs = await folder.getDirectoryHandle('thumbs', { create: true });
+  const renamed = new Map();
+  for (const p of old) {
+    try {
+      const name = await uniqueName(folder, photoBaseName(p));
+      await writeFile(folder, name, await readImageFile(p.imageFile));
+      const t = p.thumbFile ? await readImageFile(p.thumbFile).catch(() => null) : null;
+      if (t) await writeFile(thumbs, name, t);
+      renamed.set(p.id, { imageFile: name, thumbFile: t ? 'thumbs/' + name : undefined });
+    } catch {}
+  }
+  if (!renamed.size) return;
+  const stillOld = p => renamed.has(p.id) && p.imageFile === `${p.id}.jpg`;
+  const ok = await commitShared(list => list.map(p => stillOld(p) ? { ...p, ...renamed.get(p.id) } : p),
+                                list => !list.some(stillOld));
+  if (ok) for (const p of old) if (renamed.has(p.id)) { removeImageFile(p.imageFile); if (p.thumbFile) removeImageFile(p.thumbFile); }
+}
+async function toSharedAll(list) { const out = []; for (const p of list) out.push(await toShared(p)); return out; }
+
+function imageUrl(p, thumb) {
+  if (p.image) return Promise.resolve(p.image);
+  const name = thumb ? (p.thumbFile || p.imageFile) : p.imageFile;
+  if (!name || !dir || !sharedReady) return Promise.resolve(null);
+  // photoVersion changes when an edit replaces a photo under the same file name.
+  const key = `${name}|${p.photoVersion || ''}`;
+  if (!imageUrls.has(key)) {
+    imageUrls.set(key, readImageFile(name).then(f => URL.createObjectURL(f)).catch(() => { imageUrls.delete(key); return null; }));
+  }
+  return imageUrls.get(key);
+}
+// Photo bytes for exports: full size, or the thumbnail when `thumb` is set.
+async function imageBlob(p, thumb) {
+  if (p.image) return dataUrlToBlob(p.image);
+  const name = thumb ? (p.thumbFile || p.imageFile) : p.imageFile;
+  if (!name || !dir || !sharedReady) return null;
+  try { return await readImageFile(name); } catch { return null; }
+}
+
+function showShared(list) {
+  parts = list;
+  saveLocal(false);
+  lastSync = new Date();
+  sharedError = '';
+  render();
+  updateBar();
+}
+function sharedFailed(e) {
+  if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) sharedReady = false;
+  sharedError = e && e.name === 'NotFoundError'
+    ? 'The shared catalog could not be found. Check the network drive is connected.'
+    : 'Could not reach the shared catalog folder. Check the network drive is connected.';
+  updateBar();
+}
+
+function commitShared(change, verify) {
+  const run = async () => {
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        await writeShared(change(await readShared()));
+        await sleep(300 + Math.random() * 500);
+        const check = await readShared();
+        if (verify(check)) { showShared(check); return true; }
+      }
+      alert('Someone else was saving at the same moment and your change did not go through. Please try again.');
+    } catch (e) { sharedFailed(e); alert(sharedError); }
+    return false;
+  };
+  return (queue = queue.then(run, run));
+}
+
+async function syncShared() {
+  if (!dir || !sharedReady) return;
+  await (queue = queue.then(async () => {
+    try {
+      const f = await (await dir.getFileHandle(CATALOG)).getFile();
+      if (f.lastModified !== catalogModified) showShared(await readShared());
+      else { lastSync = new Date(); sharedError = ''; updateBar(); }
+    } catch (e) { sharedFailed(e); }
+  }));
+}
+
+// Catalogs saved by the earlier single-file version keep photos inside the catalog.
+// Move those photos out into the images folder.
+async function moveEmbeddedPhotos(data) {
+  const old = data.filter(p => p.image);
+  if (!old.length) return;
+  const moved = new Map();
+  for (const p of old) moved.set(p.id, await toShared(p));
+  await commitShared(list => list.map(p => p.image && moved.has(p.id) ? moved.get(p.id) : p),
+                     list => !list.some(p => p.image && moved.has(p.id)));
+}
+
+async function chooseFolder() {
+  let handle;
+  try { handle = await window.showDirectoryPicker({ id: 'parts-catalog', mode: 'readwrite' }); } catch { return; }
+  try {
+    if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') return;
+    const local = parts;
+    let data = null;
+    try { data = JSON.parse(await (await (await handle.getFileHandle(CATALOG)).getFile()).text() || '[]'); }
+    catch (e) { if (e.name !== 'NotFoundError') throw e; }
+    if (data === null && !confirm(`There is no parts catalog in "${handle.name}" yet. Start one there` +
+        (local.length ? ` with the ${plural(local.length, 'part')} saved in this browser?` : '?'))) return;
+    dir = handle;
+    sharedReady = true;
+    imageUrls.clear();
+    try { await storeHandle(handle); } catch {}
+    if (data === null) {
+      await writeShared(await toSharedAll(local));
+      showShared(await readShared());
+      return;
+    }
+    await moveEmbeddedPhotos(await readShared());
+    await renameOldPhotos(await readShared());
+    const ids = new Set((await readShared()).map(p => p.id));
+    const mine = local.filter(p => !ids.has(p.id));
+    if (mine.length && confirm(`Add the ${plural(mine.length, 'part')} saved in this browser to the shared catalog?`)) {
+      const conv = await toSharedAll(mine);
+      await commitShared(list => [...conv.filter(p => !list.some(x => x.id === p.id)), ...list],
+                         list => conv.every(p => list.some(x => x.id === p.id)));
+    } else showShared(await readShared());
+  } catch (e) { sharedFailed(e); alert(sharedError); }
+}
+
+async function reconnectShared() {
+  try { if (await dir.requestPermission({ mode: 'readwrite' }) !== 'granted') return; } catch { return; }
+  sharedReady = true;
+  catalogModified = 0;
+  await syncShared();
+}
+
+async function stopShared() {
+  if (!confirm('Stop using the shared catalog in this browser? Everything stays in the shared folder. ' +
+               'This browser keeps a list of the parts, but not their photos.')) return;
+  dir = null; sharedReady = false; sharedError = '';
+  imageUrls.clear();
+  try { await storeHandle(null); } catch {}
+  await saveLocal(true);
+  render();
+  updateBar();
+}
+
+function updateBar() {
+  const show = ids => ['shareOpen', 'shareReconnect', 'shareRefresh', 'shareStop', 'downloadBackup']
+    .forEach(id => { $(id).hidden = !ids.includes(id); });
+  const bar = $('backupBar'), text = $('backupText'), m = getMeta();
+  if (dir && sharedReady) {
+    bar.className = 'backup ' + (sharedError ? 'warn' : 'ok');
+    text.textContent = sharedError || `Shared catalog folder "${dir.name}". Everyone using this folder sees the same parts. ` +
+      `Other people's changes appear automatically` + (lastSync ? ` (last checked ${lastSync.toLocaleTimeString()}).` : '.');
+    show(['shareRefresh', 'shareStop']);
+  } else if (dir) {
+    bar.className = 'backup warn';
+    text.textContent = `Click Reconnect to keep using the shared catalog folder "${dir.name}".`;
+    show(['shareReconnect', 'shareStop']);
+  } else if (canShare) {
+    bar.className = 'backup';
+    text.textContent = 'Parts are only saved in this browser. To share them, choose the catalog folder on your network drive. ' +
+      'If nobody has set one up yet, choose an empty folder and a new catalog is started there.';
+    show(['shareOpen']);
+  } else {
+    bar.className = 'backup' + (m.changes ? ' warn' : '');
+    text.textContent = 'Parts are only saved in this browser. The shared catalog needs Chrome or Edge. ' + (m.changes
+      ? `You have ${plural(m.changes, 'change')} since your last backup` +
+        (m.last ? ` on ${new Date(m.last).toLocaleString()}.` : '.')
+      : (m.last ? `Last backup ${new Date(m.last).toLocaleString()}.` : ''));
+    show(['downloadBackup']);
+  }
+}
+
+$('shareOpen').onclick = chooseFolder;
+$('shareReconnect').onclick = reconnectShared;
+$('shareRefresh').onclick = syncShared;
+$('shareStop').onclick = stopShared;
+$('downloadBackup').onclick = () => exportBackup();
+
+async function initShared() {
+  updateBar();
+  if (!canShare) return;
+  try { dir = (await loadHandle()) || null; } catch { dir = null; }
+  if (dir) {
+    try { sharedReady = (await dir.queryPermission({ mode: 'readwrite' })) === 'granted'; } catch {}
+    await syncShared();
+  }
+  updateBar();
+  setInterval(syncShared, 5000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncShared(); });
+}
+
+// ---- Adding parts ----
+// Shrink images so photos stay a sensible size.
+async function readImage(file, maxSide = 1000) {
+  return shrink(await blobToDataUrl(file), maxSide);
+}
+
+$('img').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  pendingImage = null;
+  $('preview').style.display = 'none';
+  if (!file) return;
+  try {
+    pendingImage = await readImage(file);
+    $('preview').src = pendingImage;
+    $('preview').style.display = 'block';
+  } catch { $('formMsg').textContent = 'That file could not be read as an image.'; }
+});
+
+$('addForm').addEventListener('reset', () => {
+  pendingImage = null;
+  $('preview').style.display = 'none';
+  $('formMsg').textContent = '';
+});
+
+$('addForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pn = $('pn').value.trim();
+  if (!pn) { $('formMsg').textContent = 'Part number is required.'; return; }
+  if (parts.some(p => p.partNumber.toLowerCase() === pn.toLowerCase()) &&
+      !confirm(`Part ${pn} already exists. Add it anyway?`)) return;
+  const btn = $('addForm').querySelector('[type=submit]');
+  btn.disabled = true;
+  try {
+    let part = { id: newId(), partNumber: pn, description: $('desc').value.trim(),
+                 image: pendingImage, added: new Date().toISOString() };
+    if (dir && sharedReady) part = await toShared(part);
+    if (!await commit(list => [part, ...list], list => list.some(p => p.id === part.id))) return;
+    $('addForm').reset();
+    $('pn').focus();
+  } catch (err) { sharedFailed(err); alert(sharedError); }
+  finally { btn.disabled = false; }
+});
+
+$('search').addEventListener('input', () => { showCount = PAGE; render(); });
+
+// ---- Showing parts ----
+// Cards are shown 60 at a time, and each photo only loads when its card scrolls into view.
+const lazy = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+  for (const en of entries) if (en.isIntersecting) { lazy.unobserve(en.target); en.target._load(); }
+}, { rootMargin: '600px' }) : null;
+
+function render() {
+  $('adminBadge').hidden = !isAdmin();
+  const q = $('search').value.trim().toLowerCase();
+  const matches = parts.filter(p => !q ||
+    p.partNumber.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q));
+  $('count').textContent = q ? `${matches.length} of ${plural(parts.length, 'part')}` : plural(parts.length, 'part');
+  const list = $('list');
+  if (lazy) lazy.disconnect();
+  list.innerHTML = '';
+  if (!matches.length) {
+    list.innerHTML = `<div class="empty" style="grid-column:1/-1">${parts.length ? 'No parts match your search.' : 'No parts yet. Add one above.'}</div>`;
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const p of matches.slice(0, showCount)) {
+    const el = document.createElement('article');
+    el.className = 'item';
+    el.innerHTML = `
+      <div class="img"></div>
+      <div class="body">
+        <div class="pn"></div>
+        <div class="desc"></div>
+        <div class="meta"><span></span>${isAdmin() ? '<span class="actions"><button class="edit" type="button">Edit</button>' +
+          '<button class="danger" type="button">Delete</button></span>' : ''}</div>
+      </div>`;
+    const box = el.querySelector('.img');
+    const hasPhoto = p.image || p.imageFile;
+    box.textContent = !hasPhoto ? 'No image' : (p.image || (dir && sharedReady)) ? 'Loading photo…' : 'Photo is in the shared folder';
+    if (hasPhoto) {
+      box._load = async () => {
+        const url = await imageUrl(p, true);
+        if (!url) { box.textContent = p.image || (dir && sharedReady) ? 'Photo not found' : 'Photo is in the shared folder'; return; }
+        const img = new Image();
+        img.alt = p.partNumber;
+        img.decoding = 'async';
+        img.src = url;
+        box.replaceChildren(img);
+        box.onclick = async () => {
+          const full = await imageUrl(p, false);
+          if (!full) return;
+          $('viewerImg').src = full;
+          $('viewer').showModal();
+        };
+      };
+      if (lazy) lazy.observe(box); else box._load();
+    }
+    el.querySelector('.pn').textContent = p.partNumber;
+    el.querySelector('.desc').textContent = p.description || '—';
+    el.querySelector('.meta span').textContent = new Date(p.added).toLocaleDateString();
+    if (isAdmin()) el.querySelector('.edit').onclick = () => openEditor(p);
+    if (isAdmin()) el.querySelector('.danger').onclick = async () => {
+      if (!isAdmin() || !confirm(`Delete part ${p.partNumber}?`)) return;
+      const ok = await commit(list => list.filter(x => x.id !== p.id), list => !list.some(x => x.id === p.id));
+      if (ok && dir && sharedReady) {
+        for (const f of [p.imageFile, p.thumbFile]) if (f) removeImageFile(f);
+      }
+    };
+    frag.appendChild(el);
+  }
+  if (matches.length > showCount) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'ghost';
+    more.style.gridColumn = '1 / -1';
+    more.textContent = `Show more (${matches.length - showCount} more)`;
+    more.onclick = () => { showCount += PAGE; render(); };
+    frag.appendChild(more);
+  }
+  list.appendChild(frag);
+}
+
+window.addEventListener('hashchange', render);
+
+// ---- Editing parts (admin mode) ----
+let editing = null, editImage = null;
+
+async function openEditor(p) {
+  editing = p;
+  editImage = null;
+  $('editForm').reset();
+  $('editPn').value = p.partNumber;
+  $('editDesc').value = p.description || '';
+  $('editMsg').textContent = '';
+  const url = (p.image || p.imageFile) ? await imageUrl(p, false) : null;
+  $('editPreview').hidden = !url;
+  if (url) $('editPreview').src = url;
+  $('editNoPhoto').hidden = !!url;
+  $('editNoPhoto').textContent = (p.imageFile && !url) ? 'The current photo is in the shared folder.' : 'No photo yet.';
+  $('editor').showModal();
+}
+$('editCancel').onclick = () => $('editor').close();
+$('editImg').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  editImage = null;
+  if (!file) return;
+  try {
+    editImage = await readImage(file);
+    $('editPreview').src = editImage;
+    $('editPreview').hidden = false;
+    $('editNoPhoto').hidden = true;
+  } catch { $('editMsg').textContent = 'That file could not be read as an image.'; }
+});
+
+// Works out where the edited part's photo lives in the shared folder, keeping the file
+// named after the (possibly new) part number and description. Returns the new photo
+// fields and the old files to remove once the edit is saved.
+async function placeEditedPhoto(p, updated, newImage) {
+  const base = photoBaseName(updated);
+  const sameBase = f => f && f.replace(/ \(\d+\)\.jpg$|\.jpg$/, '') === base;
+  const old = [p.imageFile, p.thumbFile].filter(Boolean);
+  if (newImage && sameBase(p.imageFile)) {
+    // Same name as before: overwrite the photo in place.
+    const folder = await imagesDir(true);
+    const thumbs = await folder.getDirectoryHandle('thumbs', { create: true });
+    const name = p.imageFile;
+    await writeFile(folder, name, dataUrlToBlob(newImage));
+    await writeFile(thumbs, name, dataUrlToBlob(await shrink(newImage, 320, 0.75)));
+    return { fields: { imageFile: name, thumbFile: 'thumbs/' + name, photoVersion: Date.now() },
+             remove: old.filter(f => f !== name && f !== 'thumbs/' + name) };
+  }
+  if (newImage) {
+    const { imageFile, thumbFile } = await toShared({ ...updated, image: newImage });
+    return { fields: { imageFile, thumbFile, photoVersion: Date.now() }, remove: old };
+  }
+  if (!p.imageFile || sameBase(p.imageFile)) return { fields: {}, remove: [] };
+  // Part number or description changed: rename the photo to match.
+  const folder = await imagesDir(true);
+  const thumbs = await folder.getDirectoryHandle('thumbs', { create: true });
+  const name = await uniqueName(folder, base);
+  await writeFile(folder, name, await readImageFile(p.imageFile));
+  const t = p.thumbFile ? await readImageFile(p.thumbFile).catch(() => null) : null;
+  if (t) await writeFile(thumbs, name, t);
+  return { fields: { imageFile: name, thumbFile: t ? 'thumbs/' + name : undefined }, remove: old };
+}
+
+$('editForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const p = editing;
+  if (!p || !isAdmin()) return;
+  const pn = $('editPn').value.trim();
+  if (!pn) { $('editMsg').textContent = 'Part number is required.'; return; }
+  if (pn.toLowerCase() !== p.partNumber.toLowerCase() &&
+      parts.some(x => x.id !== p.id && x.partNumber.toLowerCase() === pn.toLowerCase()) &&
+      !confirm(`Part ${pn} already exists. Save anyway?`)) return;
+  const btn = $('editForm').querySelector('[type=submit]');
+  btn.disabled = true;
+  try {
+    let updated = { ...p, partNumber: pn, description: $('editDesc').value.trim(), edited: new Date().toISOString() };
+    let remove = [];
+    if (dir && sharedReady) {
+      const placed = await placeEditedPhoto(p, updated, editImage);
+      updated = { ...updated, ...placed.fields };
+      remove = placed.remove;
+    } else if (editImage) {
+      updated.image = editImage;
+      delete updated.imageFile; delete updated.thumbFile;
+    }
+    let gone = false;
+    const ok = await commit(list => {
+      gone = !list.some(x => x.id === p.id);
+      return list.map(x => x.id === p.id ? updated : x);
+    }, list => !list.some(x => x.id === p.id) || list.some(x => x.id === p.id && x.edited === updated.edited));
+    if (!ok) return;
+    if (gone) {
+      alert('Someone else deleted this part while you were editing it.');
+      remove = [updated.imageFile, updated.thumbFile].filter(f => f && !(p.imageFile === f || p.thumbFile === f));
+    }
+    for (const f of remove) removeImageFile(f);
+    $('editor').close();
+  } catch (err) { sharedFailed(err); alert(sharedError); }
+  finally { btn.disabled = false; }
+});
+
+$('viewer').addEventListener('click', () => $('viewer').close());
+
+// ---- Backups ----
+// A backup is one self-contained file with every photo inside it.
+async function exportBackup() {
+  const out = [];
+  for (const p of parts) {
+    const { imageFile, thumbFile, ...rest } = p;
+    const blob = p.image ? null : await imageBlob(p, false);
+    out.push(blob ? { ...rest, image: await blobToDataUrl(blob) } : rest);
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+  a.download = `parts-catalog-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  markBackedUp();
+  updateBar();
+}
+$('exportBtn').onclick = exportBackup;
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+    if (!Array.isArray(data)) throw 0;
+  } catch { alert('That file is not a valid parts backup.'); return; }
+  try {
+    const ids = new Set(parts.map(p => p.id));
+    let added = data.filter(p => p && p.partNumber && !ids.has(p.id))
+      .map(p => ({ id: p.id || newId(),
+                   partNumber: String(p.partNumber), description: String(p.description || ''),
+                   image: typeof p.image === 'string' && p.image.startsWith('data:image/') ? p.image : null,
+                   added: p.added || new Date().toISOString() }));
+    if (dir && sharedReady) added = await toSharedAll(added);
+    const ok = await commit(list => [...added.filter(p => !list.some(x => x.id === p.id)), ...list],
+                            list => added.every(p => list.some(x => x.id === p.id)));
+    if (ok) alert(`Imported ${plural(added.length, 'part')}.`);
+  } catch (err) { sharedFailed(err); alert(sharedError); }
+};
+
+// ---- Excel export ----
+// Builds a real .xlsx file (a zip of XML parts) in the browser, with each part's photo
+// placed in column A. No library or internet connection needed.
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function zip(files) { // files: [{name, data: Uint8Array}], stored without compression
+  const enc = new TextEncoder(), chunks = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, 0, true);
+    h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true);
+    h.setUint16(26, name.length, true);
+    chunks.push(new Uint8Array(h.buffer), name, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true);
+    c.setUint32(16, crc, true); c.setUint32(20, size, true); c.setUint32(24, size, true);
+    c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+    central.push(new Uint8Array(c.buffer), name);
+    offset += 30 + name.length + size;
+  }
+  const cdSize = central.reduce((n, a) => n + a.length, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, cdSize, true); e.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, new Uint8Array(e.buffer)],
+    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const xmlEsc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+function imageSize(src) {
+  return new Promise(res => { const i = new Image(); i.onload = () => res([i.naturalWidth, i.naturalHeight]); i.onerror = () => res(null); i.src = src; });
+}
+
+async function exportExcel() {
+  if (!parts.length) { alert('There are no parts to export yet.'); return; }
+  const enc = new TextEncoder(), files = [], add = (name, text) => files.push({ name, data: enc.encode(text) });
+  const NS = 'http://schemas.openxmlformats.org/', R = NS + 'officeDocument/2006/relationships';
+  const BOX = 110, ROW_PX = 120, EMU = 9525;
+  const rows = [], anchors = [], imgRels = [];
+  rows.push('<row r="1"><c r="A1" t="inlineStr" s="1"><is><t>Image</t></is></c><c r="B1" t="inlineStr" s="1"><is><t>Part number</t></is></c>' +
+    '<c r="C1" t="inlineStr" s="1"><is><t>Description</t></is></c><c r="D1" t="inlineStr" s="1"><is><t>Date added</t></is></c></row>');
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i], r = i + 2;
+    const added = new Date(p.added), serial = (added.getTime() - added.getTimezoneOffset() * 60000) / 86400000 + 25569;
+    const blob = await imageBlob(p, true);
+    const ext = blob && ({ 'image/png': 'png', 'image/gif': 'gif' }[blob.type] || 'jpeg');
+    let size = null;
+    if (blob) { const u = URL.createObjectURL(blob); size = await imageSize(u); URL.revokeObjectURL(u); }
+    rows.push(`<row r="${r}"${size ? ` ht="${ROW_PX * 0.75}" customHeight="1"` : ''}>` +
+      `<c r="B${r}" t="inlineStr" s="2"><is><t>${xmlEsc(p.partNumber)}</t></is></c>` +
+      `<c r="C${r}" t="inlineStr" s="2"><is><t xml:space="preserve">${xmlEsc(p.description)}</t></is></c>` +
+      (isNaN(serial) ? '' : `<c r="D${r}" s="3"><v>${serial}</v></c>`) + '</row>');
+    if (size) {
+      const n = imgRels.length + 1, bytes = new Uint8Array(await blob.arrayBuffer());
+      files.push({ name: `xl/media/image${n}.${ext}`, data: bytes });
+      imgRels.push(`<Relationship Id="rId${n}" Type="${R}/image" Target="../media/image${n}.${ext}"/>`);
+      const scale = Math.min(BOX / size[0], BOX / size[1]), w = Math.round(size[0] * scale), h = Math.round(size[1] * scale);
+      anchors.push(`<xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>${5 * EMU}</xdr:colOff><xdr:row>${r - 1}</xdr:row>` +
+        `<xdr:rowOff>${5 * EMU}</xdr:rowOff></xdr:from><xdr:ext cx="${w * EMU}" cy="${h * EMU}"/><xdr:pic><xdr:nvPicPr>` +
+        `<xdr:cNvPr id="${n + 1}" name="${xmlEsc(p.partNumber)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
+        `<xdr:blipFill><a:blip r:embed="rId${n}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr>` +
+        `<a:xfrm><a:off x="0" y="0"/><a:ext cx="${w * EMU}" cy="${h * EMU}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>` +
+        `</xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`);
+    }
+  }
+  const hasImages = imgRels.length > 0, last = parts.length + 1;
+  add('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="${NS}package/2006/content-types">` +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/><Default Extension="jpeg" ContentType="image/jpeg"/>' +
+    '<Default Extension="png" ContentType="image/png"/><Default Extension="gif" ContentType="image/gif"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+    (hasImages ? '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : '') +
+    '</Types>');
+  add('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+  add('xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}spreadsheetml/2006/main" xmlns:r="${R}">` +
+    '<sheets><sheet name="Parts" sheetId="1" r:id="rId1"/></sheets>' +
+    `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Parts!$A$1:$D$${last}</definedName></definedNames></workbook>`);
+  add('xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/>` +
+    `<Relationship Id="rId2" Type="${R}/styles" Target="styles.xml"/></Relationships>`);
+  add('xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${NS}spreadsheetml/2006/main">` +
+    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+    '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFDCE6F2"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
+    '<xf numFmtId="14" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="top"/></xf>' +
+    '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>');
+  add('xl/worksheets/sheet1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${NS}spreadsheetml/2006/main" xmlns:r="${R}">` +
+    `<dimension ref="A1:D${last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` +
+    '<sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="17" customWidth="1"/><col min="2" max="2" width="22" customWidth="1"/>' +
+    '<col min="3" max="3" width="60" customWidth="1"/><col min="4" max="4" width="14" customWidth="1"/></cols>' +
+    `<sheetData>${rows.join('')}</sheetData><autoFilter ref="A1:D${last}"/>` +
+    (hasImages ? '<drawing r:id="rId1"/>' : '') + '</worksheet>');
+  if (hasImages) {
+    add('xl/worksheets/_rels/sheet1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships">` +
+      `<Relationship Id="rId1" Type="${R}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
+    add('xl/drawings/drawing1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="${NS}drawingml/2006/spreadsheetDrawing" ` +
+      `xmlns:a="${NS}drawingml/2006/main" xmlns:r="${R}">${anchors.join('')}</xdr:wsDr>`);
+    add('xl/drawings/_rels/drawing1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships">${imgRels.join('')}</Relationships>`);
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(zip(files));
+  a.download = `parts-catalog-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('xlsxBtn').onclick = exportExcel;
+
+loadLocal().then(list => { parts = list; render(); initShared(); });
+</script>
+</body>
+</html>

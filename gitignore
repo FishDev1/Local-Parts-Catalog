@@ -1,0 +1,25 @@
+# ---- Catalog data (lives on the N: drive - never commit) ----
+parts-catalog.json
+parts-catalog*.json
+*backup*.json
+images/
+thumbs/
+Manual Backups/
+
+# ---- Exports ----
+*.xlsx
+*.xls
+*.csv
+
+# ---- Office temp / lock files ----
+~$*
+*.tmp
+
+# ---- OS files ----
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---- Editor files ----
+.vscode/
+*.swp
